@@ -7,12 +7,12 @@ I wanted to build something that handles the heavy lifting of lead research with
 
 This project is a multi-agent system designed to automate the initial stages of the outbound sales motion. The workflow utilizes four specific agent roles:
 
-* **Signal Monitor:** Scans external data sources for specific company-level trigger events.
-* **Account Researcher:** Identifies target personas within the signaled companies and compiles relevant background data.
+* **Signal Monitor:** Scans external data sources like Clay for specific company-level trigger events.
+* **Account Researcher:** Identifies target personas within the signaled companies and compiles relevant background data using Apollo and BeautifulSoup
 * **Copywriter:** Drafts targeted outreach messaging based on the signal and persona research.
 * **QA Reviewer:** Evaluates the drafted text against strict criteria for relevance and tone. This enforces a self-correction loop before final output.
 
-The system concludes by formatting the data and delivering it via a Slack webhook for human review and approval.
+The system concludes by formatting the data and delivering it via Slack for human review and approval.
 
 ## Business Intent
 
@@ -22,11 +22,39 @@ This system automates the research and drafting phases. By providing a verified 
 
 ## Architecture
 
-[Placeholder: Insert Data Flow Diagram and Agent Logic Mapping]
+View the architecture diagram in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 
 ## Tech Stack
 
-[Placeholder: List languages, frameworks, LLM providers, search tools, and APIs used]
+* **Languages & Frameworks:** Python, LangChain, CrewAI
+* **AI:** OpenAI API
+* **GTM Tools & APIs:** Clay, Apollo, BeautifulSoup, and Salesforce/HubSpot developer docs
+* **Communication:** Slack webhooks
+
+## Project Structure
+
+autonomous_gtm_agent/
+│
+├── shared/
+│   ├── crm_client.py
+│   └── schemas.py
+│
+├── autonomous_sdr/
+│   ├── agent_monitor.py     
+│   ├── agent_researcher.py
+│   ├── agent_copywriter.py
+│   ├── agent_reviewer.py
+│   ├── tool_clay.py
+│   ├── tool_apollo.py
+│   ├── main.py
+│   └── README.md
+│
+├── docs/
+│   ├── ARCHITECTURE.md
+│   └── PROPOSAL.md
+│
+└── README.md
+
 
 ## Documentation & Technical Challenges
 
@@ -34,5 +62,5 @@ This system automates the research and drafting phases. By providing a verified 
 
 ## Demo & Resources
 
-* [Placeholder: Link to Video Demo]
-* [Placeholder: Link to Technical GTM Article]
+* [Placeholder: Link to video demo]
+* [Placeholder: Link to article or post]

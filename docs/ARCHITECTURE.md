@@ -1,5 +1,7 @@
 # Agentic Workflow Architecture
 
+[Go back to the project README](../README.md)
+
 ```mermaid
 graph TD
     A[Data Source: News API / RSS] -->|Raw Trigger Data| B(Agent 1: Signal Monitor)
