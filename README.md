@@ -55,7 +55,7 @@ autonomous_gtm_agent/
 │   └── PROPOSAL.md
 │
 └── README.md
-
+```
 
 ## Documentation & Technical Challenges
 
