@@ -1,6 +1,7 @@
-# Autonomous GTM Agent
+# Intent-to-Outbound AI Agent
 
 This is an autonomous system built with LangChain and CrewAI that uses AI agents to constantly be on the lookout for high-intent buying signals, research the right people to talk to, and draft personalized outreach emails.
+
 I wanted to build something that handles the heavy lifting of lead research without a human needing to click every button. The goal is to create a system that acts as a partner to a sales team by finding the best opportunities and doing the dirty work so they can focus on the human side of the business.
 
 ## Project Scope
@@ -27,14 +28,14 @@ View the architecture diagram in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 ## Tech Stack
 
 * **Languages & Frameworks:** Python, LangChain, CrewAI
-* **AI:** OpenAI API
+* **AI:** Google Gemini API (via LangChain `ChatGoogleGenerativeAI`)
 * **GTM Tools & APIs:** Clay, Apollo, BeautifulSoup, and Salesforce/HubSpot developer docs
 * **Communication:** Slack webhooks
 
 ## Project Structure
 
 ```text
-autonomous_gtm_agent/
+intent-to-outbound-ai-agent/
 │
 ├── shared/
 │   ├── crm_client.py
@@ -57,11 +58,40 @@ autonomous_gtm_agent/
 └── README.md
 ```
 
-## Documentation & Technical Challenges
+## Setup
 
-[Placeholder: Link to detailed documentation, local setup instructions, and a summary of technical roadblocks overcome during development]
+```bash
+# Clone and enter the project
+cd intent-to-outbound-ai-agent
 
-## Demo & Resources
+# Create virtual environment
+python -m venv .venv && source .venv/bin/activate
 
-* [Placeholder: Link to video demo]
-* [Placeholder: Link to article or post]
+# Install dependencies
+pip install -r requirements.txt
+
+# Configure API keys
+cp .env.example .env
+# Edit .env with your keys: GEMINI_API_KEY (required), CLAY_API_KEY, APOLLO_API_KEY, SLACK_WEBHOOK_URL
+```
+
+## Usage
+
+```bash
+# Run the full pipeline (GEMINI_API_KEY required; Clay/Apollo optional — demo data if unset)
+python -m autonomous_sdr.main
+
+# Custom signal query
+python -m autonomous_sdr.main --query "series B healthcare startups"
+
+# Limit to 3 signals
+python -m autonomous_sdr.main --max-signals 3
+```
+
+Results are saved to `output/leads.jsonl` and delivered to Slack (if configured).
+
+## Documentation
+
+* [Architecture Diagram](docs/ARCHITECTURE.md)
+* [Project Proposal](docs/PROPOSAL.md)
+* [SDR Module Details](autonomous_sdr/README.md)
