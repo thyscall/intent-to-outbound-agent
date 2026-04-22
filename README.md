@@ -85,7 +85,7 @@ intent-to-outbound-ai-agent/
 cd intent-to-outbound-ai-agent
 
 # Create virtual environment
-python -m venv .venv && source .venv/bin/activate
+python3 -m venv .venv && source .venv/bin/activate
 
 # Install dependencies
 pip install -r requirements.txt
@@ -103,7 +103,7 @@ cp .env.example .env
 Use this for interviews, code review, and dry-runs when external APIs are not configured.
 
 ```bash
-python -m autonomous_sdr.main --max-signals 1
+python3 -m autonomous_sdr.main --max-signals 1
 ```
 
 What this demonstrates:
@@ -111,32 +111,37 @@ What this demonstrates:
 - Deterministic validation and terminal statuses
 - Structured logs and `output/leads.jsonl` record generation
 
-### 2) Live Integration Demo (Optional)
+### 2) Live Integration Demo (Default for production use)
 
 If you have credentials ready, the same command path will use live services:
 - **Clay** for signals (`CLAY_API_KEY`, `CLAY_TABLE_ID`)
-- **Gemini** for agent reasoning (`GEMINI_API_KEY`)
+- **Apollo** for persona search (`APOLLO_API_KEY`)
+- **Gemini** for agent reasoning and fallback synthesis (`GEMINI_API_KEY`)
 - **Slack** for delivery (`SLACK_WEBHOOK_URL`)
 
-Apollo is optional for this sprint and can remain in demo fallback mode.
+Fallback behavior is automatic:
+- If **Clay** credentials are missing or Clay is unavailable, signals fall back to `LOCAL_SIGNALS_PATH` (or built-in demo rows).
+- If **Apollo** credentials are missing, plan-limited, or Apollo requests fail, researcher contact data falls back to realistic demo contacts.
+- If **GEMINI_API_KEY** is missing, the orchestrator runs deterministic local demo mode.
+- If **Slack** is configured, the pipeline still delivers whichever lead package was produced.
 
 ## Tests
 
 ```bash
-python -m pytest tests/ -q
+python3 -m pytest tests/ -q
 ```
 
 ## Usage
 
 ```bash
 # Run pipeline (no keys = local demo mode; with GEMINI key = live agent mode)
-python -m autonomous_sdr.main
+python3 -m autonomous_sdr.main
 
 # Custom signal query
-python -m autonomous_sdr.main --query "series B healthcare startups"
+python3 -m autonomous_sdr.main --query "series B healthcare startups"
 
 # Limit to 3 signals
-python -m autonomous_sdr.main --max-signals 3
+python3 -m autonomous_sdr.main --max-signals 3
 ```
 
 Results are saved to `output/leads.jsonl` and delivered to Slack (if configured).

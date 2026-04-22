@@ -73,7 +73,11 @@ class ApolloPersonSearchTool(BaseTool):
         api_key = os.getenv("APOLLO_API_KEY")
 
         if not api_key:
-            return self._demo_contacts(company_domain, target_title)
+            return self._demo_contacts(
+                company_domain,
+                target_title,
+                reason="APOLLO_API_KEY missing",
+            )
 
         return self._search_apollo(api_key, company_domain, target_title)
 
@@ -86,12 +90,12 @@ class ApolloPersonSearchTool(BaseTool):
         headers = {
             "Content-Type": "application/json",
             "Cache-Control": "no-cache",
+            "X-Api-Key": api_key,
         }
 
         titles = [title_filter] if title_filter else TARGET_TITLES
 
         payload: dict[str, Any] = {
-            "api_key": api_key,
             "q_organization_domains": domain,
             "person_titles": titles,
             "person_seniorities": [
@@ -135,21 +139,62 @@ class ApolloPersonSearchTool(BaseTool):
             logger.info(
                 "Apollo returned %d contacts for %s", len(contacts), domain
             )
+            if not contacts:
+                logger.warning(
+                    "Apollo returned no contacts for %s. Using fallback contacts.",
+                    domain,
+                )
+                return self._demo_contacts(
+                    domain,
+                    title_filter,
+                    reason="Apollo returned zero contacts",
+                )
             return json.dumps(contacts, indent=2)
 
         except requests.HTTPError as exc:
-            logger.error("Apollo API HTTP error: %s", exc)
-            return json.dumps({"error": str(exc)})
+            status = exc.response.status_code if exc.response is not None else None
+            detail = ""
+            if exc.response is not None:
+                try:
+                    body = exc.response.json()
+                    if isinstance(body, dict):
+                        detail = str(
+                            body.get("error")
+                            or body.get("message")
+                            or body.get("error_code")
+                            or ""
+                        )
+                except ValueError:
+                    detail = (exc.response.text or "").strip()[:300]
+            reason = f"Apollo HTTP {status}: {detail or exc}"
+            logger.warning("%s. Using fallback contacts for %s.", reason, domain)
+            return self._demo_contacts(
+                domain,
+                title_filter,
+                reason=reason,
+            )
         except requests.RequestException as exc:
-            logger.error("Apollo API request failed: %s", exc)
-            return json.dumps({"error": str(exc)})
+            reason = f"Apollo request failed: {exc}"
+            logger.warning("%s. Using fallback contacts for %s.", reason, domain)
+            return self._demo_contacts(
+                domain,
+                title_filter,
+                reason=reason,
+            )
 
     @staticmethod
-    def _demo_contacts(domain: str, title_filter: str) -> str:
+    def _demo_contacts(
+        domain: str, title_filter: str, reason: str = ""
+    ) -> str:
         """Return realistic sample contacts when no Apollo API key is set."""
-        logger.info(
-            "APOLLO_API_KEY not set — returning demo contacts for %s.", domain
-        )
+        if reason:
+            logger.info(
+                "Returning demo contacts for %s due to: %s",
+                domain,
+                reason,
+            )
+        else:
+            logger.info("Returning demo contacts for %s.", domain)
         demo = [
             {
                 "full_name": "Sarah Chen",

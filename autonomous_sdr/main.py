@@ -698,7 +698,7 @@ def deliver_to_slack(
                 {
                     "type": "mrkdwn",
                     "text": (
-                        f"*QA Status:*\n{qa_status} (score: {result.qa.score})"
+                        f"*QA Status:*\n{qa_status} (score: {result.qa.score}/50)"
                     ),
                 },
                 {
