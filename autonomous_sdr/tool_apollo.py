@@ -1,8 +1,7 @@
 """
-Apollo.io API integration tool for the Account Researcher agent.
-
-Searches for target personas (VP Sales, Head of Engineering, CTO, etc.)
-at a given company and returns structured contact data.
+This integration finds likely decision-makers at a target account using Apollo data.
+It returns structured contact details (name, title, email, LinkedIn, seniority)
+so outbound drafts can be personalized to the right person at the right company.
 """
 
 from __future__ import annotations
@@ -16,7 +15,18 @@ import requests
 from crewai.tools import BaseTool
 from pydantic import BaseModel, Field
 
+from shared.http import get_retrying_session, session_timeout
+
 logger = logging.getLogger(__name__)
+_apollo_session: requests.Session | None = None
+
+
+def _apollo_http() -> requests.Session:
+    # Reuse one session so provider calls follow the same retry/timeout policy.
+    global _apollo_session
+    if _apollo_session is None:
+        _apollo_session = get_retrying_session(service_name="apollo")
+    return _apollo_session
 
 APOLLO_API_BASE = "https://api.apollo.io/api/v1"
 
@@ -59,6 +69,7 @@ class ApolloPersonSearchTool(BaseTool):
     def _run(
         self, company_domain: str, target_title: str = ""
     ) -> str:
+        # Demo fallback keeps onboarding and local GTM testing unblocked.
         api_key = os.getenv("APOLLO_API_KEY")
 
         if not api_key:
@@ -69,6 +80,9 @@ class ApolloPersonSearchTool(BaseTool):
     def _search_apollo(
         self, api_key: str, domain: str, title_filter: str
     ) -> str:
+        # Business flow:
+        # 1) Search by account domain and leadership-relevant titles.
+        # 2) Normalize results into one contact shape for downstream prompts.
         headers = {
             "Content-Type": "application/json",
             "Cache-Control": "no-cache",
@@ -92,11 +106,12 @@ class ApolloPersonSearchTool(BaseTool):
         }
 
         try:
-            resp = requests.post(
+            http = _apollo_http()
+            resp = http.post(
                 f"{APOLLO_API_BASE}/mixed_people/search",
                 headers=headers,
                 json=payload,
-                timeout=30,
+                timeout=session_timeout(http),
             )
             resp.raise_for_status()
             data = resp.json()
@@ -182,6 +197,7 @@ class WebScraperTool(BaseTool):
     args_schema: Type[BaseModel] = WebScraperInput
 
     def _run(self, url: str) -> str:
+        # Extract only useful company context for messaging and skip page noise.
         try:
             from bs4 import BeautifulSoup
         except ImportError:
@@ -196,7 +212,10 @@ class WebScraperTool(BaseTool):
         }
 
         try:
-            resp = requests.get(url, headers=headers, timeout=15)
+            http = _apollo_http()
+            resp = http.get(
+                url, headers=headers, timeout=session_timeout(http)
+            )
             resp.raise_for_status()
         except requests.RequestException as exc:
             logger.warning("Failed to scrape %s: %s", url, exc)

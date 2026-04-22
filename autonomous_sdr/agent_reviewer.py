@@ -15,7 +15,8 @@ from crewai import Agent, Task
 
 
 QA_RUBRIC = """\
-Score each dimension from 0-10 and provide a total score:
+Score each dimension from 0-10. The "score" field must equal the sum of the
+five rubric values (0–50 total).
 
 1. SIGNAL REFERENCE (0-10): Does the email explicitly mention the
    specific buying signal (funding round, hire, product launch)?
@@ -81,16 +82,17 @@ def create_reviewer_task(
             f"{research_json}\n\n"
             "EMAIL DRAFT TO REVIEW:\n"
             f"{draft_json}\n\n"
-            "Score each of the 5 dimensions, calculate the total, and decide "
-            "whether to APPROVE or REJECT. If rejecting, provide specific, "
-            "actionable feedback the copywriter can use to revise."
+            "Return valid JSON only. Include all keys below. "
+            "The sum of the five rubric numbers must match 'score'."
         ),
         expected_output=(
-            "A JSON object with keys: "
+            "A single JSON object with these exact keys: "
+            "rubric (object with keys: signal_reference, personalization, "
+            "factual_accuracy, brevity_clarity, cta_quality — each 0-10), "
             "approved (boolean), "
-            "score (float 0-50), "
-            "feedback (string — praise if approved, revision instructions if rejected), "
-            "issues (array of strings listing specific problems, empty if approved)."
+            "score (number 0-50, equal to the sum of the five rubric values), "
+            "feedback (string), "
+            "issues (array of strings — empty if approved)."
         ),
         agent=agent,
     )

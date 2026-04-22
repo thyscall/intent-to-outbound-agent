@@ -1,3 +1,6 @@
+# This ignore file defines which generated, local, and environment-specific artifacts should never be
+# version controlled in this repository. It keeps commits focused on source-of-truth code and prevents
+# accidental leakage of local state, secrets, caches, and build outputs that can destabilize collaboration.
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
@@ -136,6 +139,8 @@ celerybeat.pid
 
 # Environments
 .env
+.env*
+!.env.example
 .envrc
 .venv
 env/
@@ -158,6 +163,9 @@ venv.bak/
 .mypy_cache/
 .dmypy.json
 dmypy.json
+
+# Local pipeline output and runtime state
+output/
 
 # Pyre type checker
 .pyre/

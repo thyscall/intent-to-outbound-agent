@@ -1,4 +1,9 @@
-"""Google Gemini LLM factory for CrewAI agents (LangChain-compatible)."""
+"""Build the shared Gemini client used by all CrewAI agents.
+
+This module constructs a LangChain-compatible chat model from environment
+configuration and validates required credentials before execution. Keeping
+model creation centralized ensures every stage uses the same runtime defaults.
+"""
 
 from __future__ import annotations
 
