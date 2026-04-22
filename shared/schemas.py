@@ -1,8 +1,7 @@
 """
-Pydantic models shared across every agent in the pipeline.
-
-These schemas define the contract between pipeline stages:
-Signal → Research → Copywriting → QA → Delivery.
+These are the shared business data contracts for the outbound pipeline.
+Every stage writes into these models so teams can trust that signals, research,
+QA outcomes, and delivery states are consistent across runs and reporting.
 """
 
 from __future__ import annotations
@@ -10,8 +9,11 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Optional
+from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, computed_field
+
+from shared.versioning import PIPELINE_SCHEMA_VERSION
 
 
 class SignalType(str, Enum):
@@ -66,16 +68,82 @@ class OutreachDraft(BaseModel):
     tone: str = "professional-casual"
 
 
+class DraftValidationResult(BaseModel):
+    """Deterministic, non-LLM validation outcome for a draft."""
+
+    passed: bool
+    rule_version: str
+    failed_rules: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+    body_word_count: int = 0
+    subject_word_count: int = 0
+
+
+class QARubricScores(BaseModel):
+    """Five rubric dimensions, 0–10 each (50 points total with score)."""
+
+    signal_reference: float = Field(ge=0.0, le=10.0)
+    personalization: float = Field(ge=0.0, le=10.0)
+    factual_accuracy: float = Field(ge=0.0, le=10.0)
+    brevity_clarity: float = Field(ge=0.0, le=10.0)
+    cta_quality: float = Field(ge=0.0, le=10.0)
+
+    def rubric_sum(self) -> float:
+        return (
+            self.signal_reference
+            + self.personalization
+            + self.factual_accuracy
+            + self.brevity_clarity
+            + self.cta_quality
+        )
+
+
+class QAStatus(str, Enum):
+    """QA layer outcome (LLM + business rules), distinct from terminal pipeline status."""
+
+    QA_PASSED = "qa_passed"
+    QA_FAILED = "qa_failed"
+    NEEDS_HUMAN_REVIEW = "needs_human_review"
+
+
+class LeadTerminalStatus(str, Enum):
+    """End state for a lead in a pipeline run (for logging and JSONL)."""
+
+    DELIVERED = "delivered"  # QA approved, deterministic pass, Slack success
+    APPROVED_NOT_DELIVERED = "approved_not_delivered"  # QA ok but no Slack or Slack failed
+    NEEDS_HUMAN_REVIEW = "needs_human_review"
+    QA_FAILED = "qa_failed"  # e.g. max revisions without approval
+
+
 class QAVerdict(BaseModel):
+    """LLM reviewer output: five dimensions (0–10 each) and total score 0–50."""
+
+    rubric: QARubricScores
     approved: bool
-    score: float = Field(ge=0.0, le=10.0)
     feedback: str
     issues: list[str] = Field(default_factory=list)
+    qa_status: QAStatus = QAStatus.NEEDS_HUMAN_REVIEW
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def score(self) -> float:
+        """Total score is always the sum of the five rubric dimensions (0–50)."""
+        return round(self.rubric.rubric_sum(), 2)
+
+
+class ResearchDossier(BaseModel):
+    """Structured account research: persona + company blocks."""
+
+    persona: PersonaContact
+    company: CompanyContext
 
 
 class PipelineResult(BaseModel):
     """End-to-end output for a single lead that passed through all four agents."""
 
+    run_id: UUID
+    lead_id: UUID
+    schema_version: str = PIPELINE_SCHEMA_VERSION
     signal: SignalEvent
     company: CompanyContext
     persona: PersonaContact
@@ -83,3 +151,5 @@ class PipelineResult(BaseModel):
     qa: QAVerdict
     revision_count: int = 0
     delivered: bool = False
+    terminal_status: LeadTerminalStatus = LeadTerminalStatus.NEEDS_HUMAN_REVIEW
+    deterministic_validation: Optional[DraftValidationResult] = None

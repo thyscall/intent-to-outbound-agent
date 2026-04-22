@@ -1,10 +1,7 @@
 """
-Clay API integration tool for the Signal Monitor agent.
-
-Queries a Clay enrichment table for companies exhibiting high-intent
-buying signals (funding rounds, leadership changes, expansion events).
-The table is assumed to be pre-configured in Clay with relevant
-enrichment columns — this tool reads the output rows.
+This integration pulls account-level buying signals from Clay.
+It reads pre-enriched rows like funding, hiring, and expansion events and
+returns them in a consistent shape so the team can prioritize outbound motion.
 """
 
 from __future__ import annotations
@@ -18,9 +15,19 @@ import requests
 from crewai.tools import BaseTool
 from pydantic import BaseModel, Field
 
-logger = logging.getLogger(__name__)
+from shared.http import get_retrying_session, session_timeout
 
-CLAY_API_BASE = "https://api.clay.com/v3"
+logger = logging.getLogger(__name__)
+_clay_session: requests.Session | None = None
+CLAY_API_BASES = ("https://api.clay.com/v3", "https://api.clay.com/v2")
+
+
+def _clay_http() -> requests.Session:
+    # Use one shared session so provider reliability settings stay consistent.
+    global _clay_session
+    if _clay_session is None:
+        _clay_session = get_retrying_session(service_name="clay")
+    return _clay_session
 
 
 class ClaySearchInput(BaseModel):
@@ -43,6 +50,7 @@ class ClaySignalSearchTool(BaseTool):
     args_schema: Type[BaseModel] = ClaySearchInput
 
     def _run(self, query: str = "") -> str:
+        # Demo mode helps stakeholders validate workflow behavior without API keys.
         api_key = os.getenv("CLAY_API_KEY")
         table_id = os.getenv("CLAY_TABLE_ID")
 
@@ -58,6 +66,9 @@ class ClaySignalSearchTool(BaseTool):
     def _fetch_clay_rows(
         self, api_key: str, table_id: str, query: str
     ) -> str:
+        # Business flow:
+        # - Pull latest qualifying signal rows from Clay.
+        # - Return clean JSON that the monitor can validate and prioritize.
         headers = {
             "Authorization": f"Bearer {api_key}",
             "Content-Type": "application/json",
@@ -67,28 +78,42 @@ class ClaySignalSearchTool(BaseTool):
         if query:
             params["q"] = query
 
-        try:
-            resp = requests.get(
-                f"{CLAY_API_BASE}/tables/{table_id}/rows",
-                headers=headers,
-                params=params,
-                timeout=30,
-            )
-            resp.raise_for_status()
-            data = resp.json()
+        http = _clay_http()
+        last_error: str | None = None
+        for api_base in CLAY_API_BASES:
+            try:
+                resp = http.get(
+                    f"{api_base}/tables/{table_id}/rows",
+                    headers=headers,
+                    params=params,
+                    timeout=session_timeout(http),
+                )
+                resp.raise_for_status()
+                data = resp.json()
 
-            rows = data.get("data", data.get("rows", []))
-            logger.info(
-                "Clay returned %d rows for query=%r", len(rows), query
-            )
-            return json.dumps(rows, indent=2, default=str)
+                rows = data.get("data", data.get("rows", []))
+                logger.info(
+                    "Clay returned %d rows via %s for query=%r",
+                    len(rows),
+                    api_base,
+                    query,
+                )
+                return json.dumps(rows, indent=2, default=str)
+            except requests.HTTPError as exc:
+                status = exc.response.status_code if exc.response is not None else None
+                last_error = str(exc)
+                # Try next API version only for endpoint-not-found failures.
+                if status == 404 and api_base != CLAY_API_BASES[-1]:
+                    logger.warning("Clay endpoint 404 for %s, trying fallback.", api_base)
+                    continue
+                logger.error("Clay API HTTP error (%s): %s", api_base, exc)
+                return json.dumps({"error": last_error})
+            except requests.RequestException as exc:
+                last_error = str(exc)
+                logger.error("Clay API request failed (%s): %s", api_base, exc)
+                return json.dumps({"error": last_error})
 
-        except requests.HTTPError as exc:
-            logger.error("Clay API HTTP error: %s", exc)
-            return json.dumps({"error": str(exc)})
-        except requests.RequestException as exc:
-            logger.error("Clay API request failed: %s", exc)
-            return json.dumps({"error": str(exc)})
+        return json.dumps({"error": last_error or "Clay request failed"})
 
     @staticmethod
     def _demo_signals(query: str) -> str:
