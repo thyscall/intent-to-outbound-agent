@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from typing import Any
 
 from pydantic import ValidationError
@@ -29,20 +30,80 @@ logger = logging.getLogger(__name__)
 INCOMPLETE_RUBRIC_ISSUE = "incomplete_qa_rubric"
 
 
+_FENCE_RE = re.compile(r"```(?:[a-zA-Z0-9_+-]*)\s*\n(.*?)```", re.DOTALL)
+
+
 def parse_agent_json(raw: str) -> Any:
-    """Extract JSON from agent output, stripping optional markdown code fences."""
-    # AI outputs often come wrapped in markdown; we normalize so downstream
-    # business logic can treat each stage as structured data.
+    """
+    Extract JSON from agent output.
+
+    Models differ in how much prose they wrap around the payload: some return a
+    bare object, others narrate their reasoning and then present the result in a
+    fenced block. This tries, in order, the whole string, each fenced block
+    (last first — the final block is the answer, earlier ones tend to be
+    working), then the first balanced JSON span found anywhere in the text.
+
+    Raises json.JSONDecodeError if nothing parses, so callers can keep treating
+    a parse failure as one error type.
+    """
     text = raw.strip()
 
-    if text.startswith("```"):
-        lines = text.split("\n")
-        lines = lines[1:]
-        if lines and lines[-1].strip() == "```":
-            lines = lines[:-1]
-        text = "\n".join(lines)
+    # 1) The whole payload is already JSON.
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        pass
 
-    return json.loads(text)
+    # 2) A fenced code block somewhere in the message.
+    for block in reversed(_FENCE_RE.findall(text)):
+        try:
+            return json.loads(block.strip())
+        except json.JSONDecodeError:
+            continue
+
+    # 3) A bare object or array embedded in prose.
+    span = _first_json_span(text)
+    if span is not None:
+        try:
+            return json.loads(span)
+        except json.JSONDecodeError:
+            pass
+
+    raise json.JSONDecodeError("No JSON object or array found in agent output", text, 0)
+
+
+def _first_json_span(text: str) -> str | None:
+    """Return the first balanced {...} or [...] substring, ignoring braces in strings."""
+    starts = [i for i in (text.find("{"), text.find("[")) if i != -1]
+    if not starts:
+        return None
+    start = min(starts)
+
+    pairs = {"{": "}", "[": "]"}
+    stack: list[str] = []
+    in_string = False
+    escaped = False
+
+    for i in range(start, len(text)):
+        ch = text[i]
+        if in_string:
+            if escaped:
+                escaped = False
+            elif ch == "\\":
+                escaped = True
+            elif ch == '"':
+                in_string = False
+            continue
+        if ch == '"':
+            in_string = True
+        elif ch in pairs:
+            stack.append(pairs[ch])
+        elif ch in ("}", "]"):
+            if not stack or stack.pop() != ch:
+                return None
+            if not stack:
+                return text[start : i + 1]
+    return None
 
 
 def as_first_dict(data: Any) -> dict[str, Any]:

@@ -36,4 +36,4 @@ python -m autonomous_sdr.main --max-signals 3
 
 The Copywriter → Reviewer loop runs up to 3 iterations. If the QA Reviewer rejects a draft (score < 35/50 or any dimension at 0), it sends specific feedback back to the Copywriter for revision. After 3 attempts, the best draft is forwarded with QA notes for human review.
 
-All agents use **Google Gemini** (`shared/llm.py` → `ChatGoogleGenerativeAI`). Set `GEMINI_API_KEY` and optionally `GEMINI_MODEL` in `.env`.
+All agents use **Claude** (`shared/llm.py` → `ChatAnthropic`). Set `CLAUDE_API_KEY` and optionally `CLAUDE_MODEL` in `.env` (default `claude-sonnet-5`).

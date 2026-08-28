@@ -39,7 +39,7 @@ from autonomous_sdr.agent_reviewer import (
 from shared.crm_client import get_crm_client
 from shared.http import get_retrying_session, session_timeout
 from shared.idempotency import record_successful_send, slack_delivery_key, was_already_sent
-from shared.llm import get_gemini_llm
+from shared.llm import get_claude_llm, resolve_model
 from shared.logging_config import StageTimer, log_event, setup_logging
 from shared.parsing import (
     INCOMPLETE_RUBRIC_ISSUE,
@@ -79,6 +79,11 @@ def _result_text(result: object) -> str:
     return raw if isinstance(raw, str) else str(raw)
 
 
+def _claude_key() -> str | None:
+    """The Anthropic SDK reads ANTHROPIC_API_KEY; this project documents CLAUDE_API_KEY."""
+    return os.getenv("CLAUDE_API_KEY") or os.getenv("ANTHROPIC_API_KEY")
+
+
 def load_env() -> None:
     env_path = ROOT_DIR / ".env"
     if env_path.exists():
@@ -86,12 +91,12 @@ def load_env() -> None:
         log_event(logger, "env_loaded", message=f"Loaded .env from {env_path}")
 
     # No hard exit here: we support a no-key demo path for fast local validation.
-    if not os.getenv("GEMINI_API_KEY"):
+    if not _claude_key():
         log_event(
             logger,
-            "gemini_key_missing",
+            "claude_key_missing",
             stage="orchestrator",
-            message="GEMINI_API_KEY not set. Falling back to local demo mode.",
+            message="CLAUDE_API_KEY not set. Falling back to local demo mode.",
         )
 
 
@@ -820,7 +825,7 @@ def run_pipeline(
     crm = get_crm_client()
     results: list[PipelineResult] = []
 
-    if not os.getenv("GEMINI_API_KEY"):
+    if not _claude_key():
         return run_pipeline_demo(
             run_id=run_id,
             max_signals=max_signals,
@@ -828,13 +833,13 @@ def run_pipeline(
             http=http,
         )
 
-    llm = get_gemini_llm()
+    llm = get_claude_llm()
     log_event(
         logger,
         "llm_config",
         run_id=run_id,
         stage="orchestrator",
-        extra={"model": os.getenv("GEMINI_MODEL", "gemini-2.0-flash")},
+        extra={"model": resolve_model(os.getenv("CLAUDE_MODEL"))},
     )
 
     signals = run_signal_monitor(query, llm, run_id)

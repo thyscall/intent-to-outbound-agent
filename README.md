@@ -28,7 +28,7 @@ View the architecture diagram in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 ## Tech Stack
 
 * **Languages & Frameworks:** Python, LangChain, CrewAI
-* **AI:** Google Gemini API (via LangChain `ChatGoogleGenerativeAI`)
+* **AI:** Claude (via LangChain `ChatAnthropic`, default `claude-sonnet-5`)
 * **GTM Tools & APIs:** Clay, Apollo, BeautifulSoup, and Salesforce/HubSpot developer docs
 * **Communication:** Slack webhooks
 
@@ -83,7 +83,7 @@ pip install -r requirements.txt
 
 # Configure API keys
 cp .env.example .env
-# Edit .env with your keys: GEMINI_API_KEY, CLAY_API_KEY, APOLLO_API_KEY, SLACK_WEBHOOK_URL
+# Edit .env with your keys: CLAUDE_API_KEY, CLAY_API_KEY, APOLLO_API_KEY, SLACK_WEBHOOK_URL
 # Optional: see .env.example for HTTP timeouts, log level, and idempotency DB path.
 ```
 
@@ -107,13 +107,13 @@ What this demonstrates:
 If you have credentials ready, the same command path will use live services:
 - **Clay** for signals (`CLAY_API_KEY`, `CLAY_TABLE_ID`)
 - **Apollo** for persona search (`APOLLO_API_KEY`)
-- **Gemini** for agent reasoning and fallback synthesis (`GEMINI_API_KEY`)
+- **Claude** for agent reasoning and fallback synthesis (`CLAUDE_API_KEY`)
 - **Slack** for delivery (`SLACK_WEBHOOK_URL`)
 
 Fallback behavior is automatic:
 - If **Clay** credentials are missing or Clay is unavailable, signals fall back to `LOCAL_SIGNALS_PATH` (or built-in demo rows).
 - If **Apollo** credentials are missing, plan-limited, or Apollo requests fail, researcher contact data falls back to realistic demo contacts.
-- If **GEMINI_API_KEY** is missing, the orchestrator runs deterministic local demo mode.
+- If **CLAUDE_API_KEY** is missing, the orchestrator runs deterministic local demo mode.
 - If **Slack** is configured, the pipeline still delivers whichever lead package was produced.
 
 ## Tests
@@ -125,7 +125,7 @@ python3 -m pytest tests/ -q
 ## Usage
 
 ```bash
-# Run pipeline (no keys = local demo mode; with GEMINI key = live agent mode)
+# Run pipeline (no keys = local demo mode; with CLAUDE_API_KEY = live agent mode)
 python3 -m autonomous_sdr.main
 
 # Custom signal query
